@@ -1,9 +1,9 @@
 ﻿ using Microsoft.AspNetCore.Mvc;
  using Microsoft.AspNetCore.Identity;
- using Microsoft.AspNetCore.Identity.Data;
  using Microsoft.EntityFrameworkCore;
  using ShadowRealm.Api.Data;
  using ShadowRealm.Api.Models;
+ using ShadowRealm.Api.Models.Auth;
 
  namespace ShadowRealm.Api.Controllers;
 
@@ -22,13 +22,13 @@
   [HttpPost("register")]
   public async Task<IActionResult> Register(RegisterRequest request)
   {
-   if (_db.Players.Any(p => p.Username == request.Email))
+   if (_db.Players.Any(p => p.Username == request.Username))
     return BadRequest("Username already taken");
 
    var player = new Player
    {
-    Username = request.Email,
-    PasswordHash = _hasher.HashPassword(request.Email, request.Password),
+    Username = request.Username,
+    PasswordHash = _hasher.HashPassword(request.Username, request.Password),
    };
    
    _db.Players.Add(player);
@@ -40,11 +40,11 @@
   [HttpPost("login")]
   public async Task<IActionResult> Login(LoginRequest request)
   {
-   var player = await _db.Players.FirstOrDefaultAsync(p => p.Username == request.Email);
+   var player = await _db.Players.FirstOrDefaultAsync(p => p.Username == request.Username);
    if(player == null)
     return Unauthorized("Invalid username");
    
-   var result = _hasher.VerifyHashedPassword(request.Email, player.PasswordHash, request.Password);
+   var result = _hasher.VerifyHashedPassword(request.Username, player.PasswordHash, request.Password);
    if(result == PasswordVerificationResult.Failed)
     return BadRequest("Invalid password");
 
