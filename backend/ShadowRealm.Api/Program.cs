@@ -102,4 +102,14 @@ app.MapGet("/ping", (ILogger<Program> logger) =>
     return Results.Ok(new { message = "pong" });
 });
 
+
+// Seed initial data
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    // Seed initial data
+    DbSeeder.SeedInitialData(db);
+    logger.LogInformation("Database seeded with initial data.");
+}
+
 app.Run();

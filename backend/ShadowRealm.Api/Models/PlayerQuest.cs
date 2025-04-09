@@ -8,5 +8,5 @@ public class PlayerQuest
     public Player Player { get; set; } = null!;
     
     public int QuestId { get; set; }
-    public Quest? Quest { get; set; } = null!;
+    public Quest Quest { get; set; } = null!;
 }
