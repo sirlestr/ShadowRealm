@@ -7,6 +7,7 @@
 
  namespace ShadowRealm.Api.Controllers;
 
+ [Route("api/[controller]")]
  public class AuthController : ControllerBase
  {
   private readonly AppDbContext _db;
@@ -20,7 +21,7 @@
   }
 
   [HttpPost("register")]
-  public async Task<IActionResult> Register(RegisterRequest request)
+  public async Task<IActionResult> Register([FromBody]RegisterRequest request)
   {
    if (_db.Players.Any(p => p.Username == request.Username))
     return BadRequest("Username already taken");
@@ -38,8 +39,11 @@
 
 
   [HttpPost("login")]
-  public async Task<IActionResult> Login(LoginRequest request)
+  public async Task<IActionResult> Login([FromBody]LoginRequest request)
   {
+   Console.WriteLine($"LoginRequest: Username = '{request.Username}', Password = '{request.Password}'");
+   
+   
    var player = await _db.Players.FirstOrDefaultAsync(p => p.Username == request.Username);
    if(player == null)
     return Unauthorized("Invalid username");

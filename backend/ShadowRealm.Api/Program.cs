@@ -46,6 +46,9 @@ builder.Services.AddSwaggerGen(options =>
 //registrace tokenservice
 builder.Services.AddScoped<TokenService>();
 
+//set url 
+builder.WebHost.UseUrls("http://localhost:5000");
+
 
 //načtení konfigurace JWT
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
