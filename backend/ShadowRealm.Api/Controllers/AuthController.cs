@@ -24,6 +24,9 @@
   [HttpPost("register")]
   public async Task<IActionResult> Register([FromBody]RegisterRequest request)
   {
+   if(!ModelState.IsValid)
+    return BadRequest(ModelState);
+   
    if (_db.Players.Any(p => p.Username == request.Username))
     return BadRequest("Username already taken");
 
@@ -42,7 +45,7 @@
   [HttpPost("login")]
   public async Task<IActionResult> Login([FromBody]LoginRequest request)
   {
-   Console.WriteLine($"LoginRequest: Username = '{request.Username}', Password = '{request.Password}'");
+   //Console.WriteLine($"LoginRequest: Username = '{request.Username}', Password = '{request.Password}'");
    
    
    var player = await _db.Players.FirstOrDefaultAsync(p => p.Username == request.Username);

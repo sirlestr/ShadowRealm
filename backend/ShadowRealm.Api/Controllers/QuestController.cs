@@ -50,7 +50,7 @@ public class QuestController : ControllerBase
                 Id = q.Id,
                 Title = q.Title,
                 Description = q.Description,
-                RewardXP = q.RevardXP
+                RewardXP = q.RewardXP
             })
             .ToList();
 
@@ -87,13 +87,13 @@ public class QuestController : ControllerBase
         _db.PlayerQuests.Add(playerQuest);
         
         // Přidání XP hráči
-        player.Experience += quest.RevardXP;
+        player.Experience += quest.RewardXP;
         
         await _db.SaveChangesAsync();
         
         return Ok(new {
             message = "Quest completed",
-            experienceGained = quest.RevardXP,
+            experienceGained = quest.RewardXP,
             totalXp=player.Experience });
     }
     

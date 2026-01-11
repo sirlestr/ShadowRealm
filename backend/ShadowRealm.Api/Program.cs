@@ -4,6 +4,7 @@ using ShadowRealm.Api.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,6 +105,20 @@ app.MapGet("/ping", (ILogger<Program> logger) =>
     logger.LogInformation("Ping endpoint was called at {Time}", DateTime.UtcNow);
     return Results.Ok(new { message = "pong" });
 });
+
+
+//centralizoavné error handling
+app.UseExceptionHandler(errorApp =>
+    errorApp.Run(async context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        
+        logger.LogError(exception, "Unhandled exception occurred.");
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsJsonAsync(new { message = "Internal server error." });
+
+    }));
 
 
 // Seed initial data
