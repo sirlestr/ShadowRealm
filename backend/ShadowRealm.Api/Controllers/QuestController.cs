@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using ShadowRealm.Api.Data;
 using ShadowRealm.Api.Models;
+using ShadowRealm.Api.Models.Responses;
 
 namespace ShadowRealm.Api.Controllers;
 
@@ -42,11 +43,18 @@ public class QuestController : ControllerBase
             .ToList();
         
         // Dostupné questy = ty, které hráč ještě nesplnil
-        var availableQuests = _db.Quests
+        var quests = _db.Quests
             .Where(q => !completedQuestIds.Contains(q.Id))
+            .Select(q => new QuestResponse
+            {
+                Id = q.Id,
+                Title = q.Title,
+                Description = q.Description,
+                RewardXP = q.RevardXP
+            })
             .ToList();
 
-        return Ok(availableQuests);
+        return Ok(quests);
     }
 
     [Authorize]

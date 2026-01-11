@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using Helpers;
+using Models;
 using UnityEngine;
 
 namespace Networking
@@ -53,6 +55,7 @@ namespace Networking
                     Debug.Log($"Token: {loginResponse.token}");
                     ApiClient.Instance.SetToken(loginResponse.token);
                     StartCoroutine(GetPlayerData());
+                    StartCoroutine(GetAvailableQuests());
                 },
                 onError: error =>
                 {
@@ -75,5 +78,24 @@ namespace Networking
                     Debug.LogError("Failed to load player data: " + error);
                 });
         }
+        
+        private IEnumerator GetAvailableQuests()
+        {
+            yield return ApiClient.Instance.Get("/api/quest",
+                onSuccess: response =>
+                {
+                    var wrapper = JsonArrayWrapper<QuestData>.FromJson(response);
+                    foreach (var quest in wrapper.items)
+                    {
+                        //Debug.Log($"Quest {quest.id}: {quest.title} ({quest.rewardXP} XP)");
+                    }
+                },
+                onError: error =>
+                {
+                    Debug.LogError("Failed to load quests: " + error);
+                });
+        }
     }
+    
+   
 }

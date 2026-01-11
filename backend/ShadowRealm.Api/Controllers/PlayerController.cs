@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using ShadowRealm.Api.Data;
 using ShadowRealm.Api.Models.Players;
+using PlayerStateResponse = ShadowRealm.Api.Models.Responses.PlayerStateResponse;
 
 namespace ShadowRealm.Api.Controllers;
 
@@ -76,15 +77,15 @@ public class PlayerController : ControllerBase
         if (player is null)
             return NotFound();
 
-        var state = new PlayerStateResponse
+        return Ok(new PlayerStateResponse
         {
             PosX = player.PosX,
             PosY = player.PosY,
             PosZ = player.PosZ,
             Level = player.Level,
             Experience = player.Experience
-        };
-        return Ok(state);
+        });
+       
 
     }
     

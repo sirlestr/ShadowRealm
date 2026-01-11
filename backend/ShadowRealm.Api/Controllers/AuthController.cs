@@ -4,6 +4,7 @@
  using ShadowRealm.Api.Data;
  using ShadowRealm.Api.Models;
  using ShadowRealm.Api.Models.Auth;
+ using ShadowRealm.Api.Models.Responses;
 
  namespace ShadowRealm.Api.Controllers;
 
@@ -52,8 +53,9 @@
    if(result == PasswordVerificationResult.Failed)
     return BadRequest("Invalid password");
 
-   var token = _tokenService.GenerateToken(player.Id, player.Username);
-   return Ok(new { token });
+   //var token = _tokenService.GenerateToken(player.Id, player.Username);
+   LoginResponse response = new(){ Token = _tokenService.GenerateToken(player.Id,player.Username) };
+   return Ok( response);
   }
 
  }
