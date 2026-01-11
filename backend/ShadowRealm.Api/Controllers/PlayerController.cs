@@ -1,93 +1,98 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
-using ShadowRealm.Api.Data;
 using ShadowRealm.Api.Models.Players;
-using PlayerStateResponse = ShadowRealm.Api.Models.Responses.PlayerStateResponse;
+using ShadowRealm.Api.Models.Responses;
+using ShadowRealm.Api.Services;
 
 namespace ShadowRealm.Api.Controllers;
 
-
 [ApiController]
 [Route("api/[controller]")]
-public class PlayerController : ControllerBase
+[Authorize]
+public class PlayerController : BaseApiController
 {
-    private readonly AppDbContext _db;
+    private readonly ILogger<PlayerController> _logger;
+    private readonly IPlayerService _playerService;
 
-    public PlayerController(AppDbContext db)
+    public PlayerController(
+        ILogger<PlayerController> logger,
+        IPlayerService playerService)
     {
-        _db = db;
+        _logger = logger;
+        _playerService = playerService;
     }
 
-    [Authorize]
     [HttpGet("me")]
-    public IActionResult Me()
+    [ProducesResponseType(typeof(PlayerInfoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerInfoResponse>> Me()
     {
-        var playerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
-            return Unauthorized("User not authenticated");
+        var playerIdResult = GetCurrentPlayerIdOrUnauthorized();
+        if (playerIdResult.Result is UnauthorizedObjectResult)
+            return playerIdResult.Result;
         
-        var player = _db.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null)
-            return NotFound("Player not found");
+        var playerId = playerIdResult.Value;
 
-        return Ok(new
+        var player = await _playerService.GetPlayerInfoAsync(playerId);
+        if (player is null)
         {
-            player.Id,
-            player.Username,
-            player.Level,
-            player.Experience,
-        });
+            _logger.LogWarning("Player {PlayerId} not found", playerId);
+            return NotFound("Player not found");
+        }
+
+        return Ok(player);
     }
 
-
-
-    [Authorize]
     [HttpPost("save")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Save([FromBody] PlayerSaveRequest request)
     {
-        var playerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
-            return Unauthorized();
-        
-        var player = await _db.Players.FindAsync(playerId);
-        if (player is null)
-            return NotFound();
-        
-        //save position
-        
-        player.PosX = request.PosX;
-        player.PosY = request.PosY;
-        player.PosZ = request.PosZ;
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        _db.SaveChangesAsync();
-        return Ok(new {message = "Player position saved"});
-    }
-
-
-    [Authorize]
-    [HttpGet("state")]
-    public async Task<ActionResult<PlayerStateResponse>> GetState()
-    { 
-        var playerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
-            return Unauthorized();
+        var playerIdResult = GetCurrentPlayerIdOrUnauthorized();
+        if (playerIdResult.Result is UnauthorizedObjectResult)
+            return playerIdResult.Result;
         
-        var player = await _db.Players.FindAsync(playerId);
-        if (player is null)
-            return NotFound();
+        var playerId = playerIdResult.Value;
 
-        return Ok(new PlayerStateResponse
+        var result = await _playerService.SavePositionAsync(
+            playerId, request.PosX, request.PosY, request.PosZ);
+
+        if (!result)
         {
-            PosX = player.PosX,
-            PosY = player.PosY,
-            PosZ = player.PosZ,
-            Level = player.Level,
-            Experience = player.Experience
-        });
-       
+            _logger.LogWarning("Failed to save position for player {PlayerId}", playerId);
+            return NotFound("Player not found");
+        }
 
+        _logger.LogInformation("Position saved for playerId {PlayerId}: ({X}, {Y}, {Z})", 
+            playerId, request.PosX, request.PosY, request.PosZ);
+        
+        return Ok(new { message = "Player position saved" });
     }
-    
-    
+
+    [HttpGet("state")]
+    [ProducesResponseType(typeof(PlayerStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerStateResponse>> GetState()
+    {
+        var playerIdResult = GetCurrentPlayerIdOrUnauthorized();
+        if (playerIdResult.Result is UnauthorizedObjectResult)
+            return playerIdResult.Result;
+        
+        var playerId = playerIdResult.Value;
+
+        var state = await _playerService.GetPlayerStateAsync(playerId);
+        if (state is null)
+        {
+            _logger.LogWarning("Player {PlayerId} not found", playerId);
+            return NotFound("Player not found");
+        }
+
+        return Ok(state);
+    }
 }

@@ -1,64 +1,70 @@
-﻿ using Microsoft.AspNetCore.Mvc;
- using Microsoft.AspNetCore.Identity;
- using Microsoft.EntityFrameworkCore;
- using ShadowRealm.Api.Data;
- using ShadowRealm.Api.Models;
- using ShadowRealm.Api.Models.Auth;
- using ShadowRealm.Api.Models.Responses;
+﻿using Microsoft.AspNetCore.Mvc;
+using ShadowRealm.Api.Models.Auth;
+using ShadowRealm.Api.Models.Responses;
+using ShadowRealm.Api.Services;
 
- namespace ShadowRealm.Api.Controllers;
+namespace ShadowRealm.Api.Controllers;
 
- [Route("api/[controller]")]
- public class AuthController : ControllerBase
- {
-  private readonly AppDbContext _db;
-  private readonly TokenService _tokenService;
-  private readonly PasswordHasher<string> _hasher = new();
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : BaseApiController
+{
+    private readonly ILogger<AuthController> _logger;
+    private readonly IAuthService _authService;
 
-  public AuthController(AppDbContext db, TokenService tokenService)
-  {
-   _db = db;
-   _tokenService = tokenService;
-  }
+    public AuthController(
+        ILogger<AuthController> logger,
+        IAuthService authService)
+    {
+        _logger = logger;
+        _authService = authService;
+    }
 
-  [HttpPost("register")]
-  public async Task<IActionResult> Register([FromBody]RegisterRequest request)
-  {
-   if(!ModelState.IsValid)
-    return BadRequest(ModelState);
-   
-   if (_db.Players.Any(p => p.Username == request.Username))
-    return BadRequest("Username already taken");
+    [HttpPost("register")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            _logger.LogWarning("Invalid model state for registration");
+            return BadRequest(ModelState);
+        }
 
-   var player = new Player
-   {
-    Username = request.Username,
-    PasswordHash = _hasher.HashPassword(request.Username, request.Password),
-   };
-   
-   _db.Players.Add(player);
-   await _db.SaveChangesAsync();
-   return Ok();
-  }
+        var result = await _authService.RegisterAsync(request.Username, request.Password);
+        
+        if (!result.Success)
+        {
+            _logger.LogWarning("Registration failed for username {Username}: {Error}", 
+                request.Username, result.ErrorMessage);
+            return BadRequest(result.ErrorMessage);
+        }
 
+        _logger.LogInformation("User {Username} registered successfully", request.Username);
+        return Ok(new { message = "Registration successful" });
+    }
 
-  [HttpPost("login")]
-  public async Task<IActionResult> Login([FromBody]LoginRequest request)
-  {
-   //Console.WriteLine($"LoginRequest: Username = '{request.Username}', Password = '{request.Password}'");
-   
-   
-   var player = await _db.Players.FirstOrDefaultAsync(p => p.Username == request.Username);
-   if(player == null)
-    return Unauthorized("Invalid username");
-   
-   var result = _hasher.VerifyHashedPassword(request.Username, player.PasswordHash, request.Password);
-   if(result == PasswordVerificationResult.Failed)
-    return BadRequest("Invalid password");
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            _logger.LogWarning("Invalid model state for login");
+            return BadRequest(ModelState);
+        }
 
-   //var token = _tokenService.GenerateToken(player.Id, player.Username);
-   LoginResponse response = new(){ Token = _tokenService.GenerateToken(player.Id,player.Username) };
-   return Ok( response);
-  }
+        var result = await _authService.LoginAsync(request.Username, request.Password);
+        
+        if (!result.Success)
+        {
+            _logger.LogWarning("Login failed for username {Username}", request.Username);
+            return Unauthorized(result.ErrorMessage);
+        }
 
- }
+        _logger.LogInformation("User {Username} logged in successfully", request.Username);
+        
+        return Ok(new LoginResponse { Token = result.Token! });
+    }
+}

@@ -1,100 +1,89 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ShadowRealm.Api.Data;
-using ShadowRealm.Api.Models;
 using ShadowRealm.Api.Models.Responses;
+using ShadowRealm.Api.Services;
 
 namespace ShadowRealm.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class QuestController : ControllerBase
+[Authorize]
+public class QuestController : BaseApiController
 {
     private readonly ILogger<QuestController> _logger;
-    private readonly AppDbContext _db;
-    
-    public QuestController(ILogger<QuestController> logger, AppDbContext db)
+    private readonly IQuestService _questService;
+
+    public QuestController(
+        ILogger<QuestController> logger,
+        IQuestService questService)
     {
         _logger = logger;
-        _db = db;
+        _questService = questService;
     }
 
-    // [HttpGet]
-    // public ActionResult<IEnumerable<Quest>> GetAll()
-    // {
-    //     var quests = _db.Quests.ToList();
-    //     return Ok(quests);
-    // }
-    
-    [Authorize]
+    /// <summary>
+    /// Získá seznam dostupných questů pro aktuálního hráče
+    /// (tj. ty, které ještě nesplnil)
+    /// </summary>
     [HttpGet]
-    public ActionResult<IEnumerable<Quest>> GetAvailableforPlayer()
+    [ProducesResponseType(typeof(IEnumerable<QuestResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<QuestResponse>>> GetAvailableForPlayer()
     {
-        var playerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
-            return Unauthorized();
+        var playerIdResult = GetCurrentPlayerIdOrUnauthorized();
+        if (playerIdResult.Result is UnauthorizedObjectResult)
+            return playerIdResult.Result;
         
-        // Seznam ID již splněných questů
-        var completedQuestIds = _db.PlayerQuests
-            .Where(pq => pq.PlayerId == playerId)
-            .Select(pq => pq.QuestId)
-            .ToList();
-        
-        // Dostupné questy = ty, které hráč ještě nesplnil
-        var quests = _db.Quests
-            .Where(q => !completedQuestIds.Contains(q.Id))
-            .Select(q => new QuestResponse
-            {
-                Id = q.Id,
-                Title = q.Title,
-                Description = q.Description,
-                RewardXP = q.RewardXP
-            })
-            .ToList();
+        var playerId = playerIdResult.Value;
 
+        var quests = await _questService.GetAvailableQuestsAsync(playerId);
+        
+        _logger.LogInformation("Retrieved {Count} available quests for player {PlayerId}", 
+            quests.Count(), playerId);
+        
         return Ok(quests);
     }
 
-    [Authorize]
+    /// <summary>
+    /// Označí quest jako splněný a přidá hráči odměnu (XP)
+    /// </summary>
     [HttpPost("complete/{id}")]
-    public async Task<IActionResult> CompleteQuest(int id)
+    [ProducesResponseType(typeof(QuestCompletionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<QuestCompletionResponse>> CompleteQuest(int id)
     {
-        var playerIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
-            return Unauthorized();
+        var playerIdResult = GetCurrentPlayerIdOrUnauthorized();
+        if (playerIdResult.Result is UnauthorizedObjectResult)
+            return playerIdResult.Result;
         
-        var player = await _db.Players.FindAsync(playerId);
-        if (player == null)
-            return NotFound("Player not found");
-        
-        var quest = await _db.Quests.FindAsync(id);
-        if (quest == null)
-            return NotFound("Quest not found");
-        
-        var alreadyCompleted = _db.PlayerQuests.Any(pq => pq.PlayerId == playerId && pq.QuestId == id);
-        if (alreadyCompleted)
-            return BadRequest("Quest already completed");
-        
-        // Přidání quest do seznamu splněných questů hráče
-        var playerQuest = new PlayerQuest
+        var playerId = playerIdResult.Value;
+
+        var result = await _questService.CompleteQuestAsync(playerId, id);
+
+        if (!result.Success)
         {
-            PlayerId = playerId,
-            QuestId = id,
-        };
-        
-        _db.PlayerQuests.Add(playerQuest);
-        
-        // Přidání XP hráči
-        player.Experience += quest.RewardXP;
-        
-        await _db.SaveChangesAsync();
-        
-        return Ok(new {
-            message = "Quest completed",
-            experienceGained = quest.RewardXP,
-            totalXp=player.Experience });
+            _logger.LogWarning("Failed to complete quest {QuestId} for player {PlayerId}: {Error}", 
+                id, playerId, result.ErrorMessage);
+            
+            return result.ErrorMessage switch
+            {
+                "Player not found" => NotFound(result.ErrorMessage),
+                "Quest not found" => NotFound(result.ErrorMessage),
+                "Quest already completed" => BadRequest(result.ErrorMessage),
+                _ => BadRequest(result.ErrorMessage)
+            };
+        }
+
+        _logger.LogInformation("Player {PlayerId} completed quest {QuestId}, gained {XP} XP", 
+            playerId, id, result.ExperienceGained);
+
+        return Ok(new QuestCompletionResponse
+        {
+            Message = "Quest completed",
+            ExperienceGained = result.ExperienceGained,
+            TotalXP = result.TotalExperience
+        });
     }
-    
 }
