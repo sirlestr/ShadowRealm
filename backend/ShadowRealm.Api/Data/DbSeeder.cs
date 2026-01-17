@@ -13,25 +13,25 @@ public static class DbSeeder
                 {
                     Title = "Najdi ztracený amulet", 
                     Description = "podle pověstí by se měl amulet nacházet v jeskyni", 
-                    RevardXP = 100
+                    RewardXP = 100
                 },
                 new ()
                 {
                     Title = "Defeat the Goblin King", 
                     Description = "Defeat the Goblin King in the forest", 
-                    RevardXP = 200
+                    RewardXP = 200
                 },
                 new ()
                 {
                     Title = "Rescue the Princess", 
                     Description = "Rescue the princess from the dragon", 
-                    RevardXP = 300
+                    RewardXP = 300
                 },
                 new ()
                 {
                     Title = "Find the Lost Treasure", 
                     Description = "Find the lost treasure in the mountains", 
-                    RevardXP = 400
+                    RewardXP = 400
                 },
             });
             
